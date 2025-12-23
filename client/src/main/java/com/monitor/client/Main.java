@@ -33,7 +33,7 @@ public class Main {
     
     public static void main(String[] args) {
         Main main = new Main();
-        main.start();
+        main.start(args);
         
         // Đăng ký shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(main::stop));
@@ -43,22 +43,39 @@ public class Main {
      * Khởi động client
      */
     public void start() {
+        start(new String[0]);
+    }
+
+    public void start(String[] args) {
         logger.info("========================================");
         logger.info("  Hệ Thống Giám Sát Máy Tính - CLIENT");
         logger.info("========================================");
         
         // Lấy cấu hình từ biến môi trường hoặc dùng giá trị mặc định
-        String serverUrl = System.getenv("SERVER_URL");
+        String serverUrl = getArgValue(args, "--server.url");
+        if (serverUrl == null || serverUrl.isEmpty()) {
+            serverUrl = System.getenv("SERVER_URL");
+        }
         if (serverUrl == null || serverUrl.isEmpty()) {
             serverUrl = DEFAULT_SERVER_URL;
         }
+
+        while (serverUrl.endsWith("/")) {
+            serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
+        }
         
-        String machineId = System.getenv("MACHINE_ID");
+        String machineId = getArgValue(args, "--machine.id");
+        if (machineId == null || machineId.isEmpty()) {
+            machineId = System.getenv("MACHINE_ID");
+        }
         if (machineId == null || machineId.isEmpty()) {
             machineId = DEFAULT_MACHINE_ID;
         }
         
-        String secretKey = System.getenv("SECRET_KEY");
+        String secretKey = getArgValue(args, "--secret.key");
+        if (secretKey == null || secretKey.isEmpty()) {
+            secretKey = System.getenv("SECRET_KEY");
+        }
         if (secretKey == null || secretKey.isEmpty()) {
             secretKey = DEFAULT_SECRET_KEY;
             logger.warn("Đang sử dụng SECRET_KEY mặc định. Hãy thay đổi trong production!");
@@ -84,7 +101,9 @@ public class Main {
             
             // Kết nối WebSocket để nhận lệnh
             String wsUrl = serverUrl.replace("http://", "ws://").replace("https://", "wss://");
-            URI wsUri = new URI(wsUrl + "/ws/client");
+            URI wsUri = new URI(wsUrl + "/ws-client");
+
+            logger.info("WebSocket URL: {}", wsUri);
             
             webSocketClient = new ClientWebSocket(wsUri, machineId, secretKey, commandHandler);
             webSocketClient.connect();
@@ -96,6 +115,22 @@ public class Main {
             logger.error("Lỗi khi khởi động client: {}", e.getMessage(), e);
             System.exit(1);
         }
+    }
+
+    private String getArgValue(String[] args, String key) {
+        if (args == null || args.length == 0 || key == null || key.isEmpty()) {
+            return null;
+        }
+        String prefix = key + "=";
+        for (String arg : args) {
+            if (arg == null) {
+                continue;
+            }
+            if (arg.startsWith(prefix)) {
+                return arg.substring(prefix.length()).trim();
+            }
+        }
+        return null;
     }
     
     /**

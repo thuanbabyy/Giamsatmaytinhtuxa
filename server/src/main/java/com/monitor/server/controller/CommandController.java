@@ -27,7 +27,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/machines")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*")
 public class CommandController {
     
     @Autowired

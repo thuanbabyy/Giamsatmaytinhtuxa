@@ -30,7 +30,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*")
 public class HeartbeatController {
     
     private static final Logger logger = LoggerFactory.getLogger(HeartbeatController.class);

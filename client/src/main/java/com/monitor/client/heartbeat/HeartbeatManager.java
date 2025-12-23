@@ -7,6 +7,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,8 +158,21 @@ public class HeartbeatManager {
             
             try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
                 int statusCode = response.getStatusLine().getStatusCode();
+                String responseBody = "";
+                try {
+                    if (response.getEntity() != null) {
+                        responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                    }
+                } catch (Exception ignored) {
+                    // ignore parse errors
+                }
+
                 if (statusCode != 200 && statusCode != 201) {
-                    logger.warn("Server trả về status code: {}", statusCode);
+                    if (responseBody == null || responseBody.isEmpty()) {
+                        logger.warn("Server trả về status code: {}", statusCode);
+                    } else {
+                        logger.warn("Server trả về status code: {}, body: {}", statusCode, responseBody);
+                    }
                 }
             }
         } catch (Exception e) {

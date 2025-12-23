@@ -21,8 +21,8 @@ public class WebSocketHandlerConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         // Đăng ký handler cho client WebSocket
-        registry.addHandler(clientWebSocketHandler, "/ws/client")
-            .setAllowedOrigins("*");
+        registry.addHandler(clientWebSocketHandler, "/ws-client")
+            .setAllowedOriginPatterns("*");
     }
 }
 

@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/machines")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*")
 public class MetricController {
     
     @Autowired
