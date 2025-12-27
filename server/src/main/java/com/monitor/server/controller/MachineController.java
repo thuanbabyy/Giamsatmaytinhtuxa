@@ -12,62 +12,68 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * REST Controller quản lý máy tính
- * 
- * Endpoints:
- * - GET /api/machines - Lấy danh sách tất cả máy tính
- * - GET /api/machines/{id} - Lấy thông tin một máy tính
+ * Controller quản lý máy tính
  */
 @RestController
 @RequestMapping("/api/machines")
-@CrossOrigin(originPatterns = "*")
+@CrossOrigin(origins = "*")
 public class MachineController {
     
     @Autowired
     private MachineService machineService;
     
     /**
-     * Lấy danh sách tất cả máy tính
-     * 
-     * Response:
-     * [
-     *   {
-     *     "machineId": "MACHINE-001",
-     *     "name": "Máy tính 1",
-     *     "isOnline": true,
-     *     "lastHeartbeat": "2024-01-01T10:00:00",
-     *     ...
-     *   }
-     * ]
+     * Lấy tất cả máy tính
      */
     @GetMapping
     public ResponseEntity<List<Machine>> getAllMachines() {
-        List<Machine> machines = machineService.getAllMachines();
-        return ResponseEntity.ok(machines);
+        return ResponseEntity.ok(machineService.getAllMachines());
     }
     
     /**
-     * Lấy thông tin một máy tính
-     * 
-     * Response:
-     * {
-     *   "machineId": "MACHINE-001",
-     *   "name": "Máy tính 1",
-     *   "isOnline": true,
-     *   ...
-     * }
+     * Lấy máy tính theo ID
      */
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getMachine(@PathVariable String id) {
-        Optional<Machine> machine = machineService.getMachineById(id);
+    @GetMapping("/{machineId}")
+    public ResponseEntity<Machine> getMachineById(@PathVariable String machineId) {
+        Optional<Machine> machine = machineService.getMachineById(machineId);
+        return machine.map(ResponseEntity::ok)
+                     .orElse(ResponseEntity.notFound().build());
+    }
+    
+    /**
+     * Đăng ký máy tính mới (từ client)
+     */
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, Object>> registerMachine(@RequestBody Map<String, String> request) {
+        String machineId = request.get("machineId");
+        String name = request.get("name");
+        String ipAddress = request.get("ipAddress");
+        String osName = request.get("osName");
+        String osVersion = request.get("osVersion");
         
-        if (machine.isPresent()) {
-            return ResponseEntity.ok(machine.get());
-        } else {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "Không tìm thấy máy tính với ID: " + id);
-            return ResponseEntity.notFound().build();
-        }
+        Machine machine = machineService.registerMachine(machineId, name, ipAddress, osName, osVersion);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Đăng ký thành công");
+        response.put("machine", machine);
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Lấy danh sách máy online
+     */
+    @GetMapping("/online")
+    public ResponseEntity<List<Machine>> getOnlineMachines() {
+        return ResponseEntity.ok(machineService.getOnlineMachines());
+    }
+    
+    /**
+     * Lấy danh sách máy offline
+     */
+    @GetMapping("/offline")
+    public ResponseEntity<List<Machine>> getOfflineMachines() {
+        return ResponseEntity.ok(machineService.getOfflineMachines());
     }
 }
-

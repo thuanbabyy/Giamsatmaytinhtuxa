@@ -2,6 +2,8 @@ package com.monitor.server.websocket;
 
 import com.google.gson.Gson;
 import com.monitor.server.service.CommandService;
+import com.monitor.server.service.MachineService;
+import com.monitor.server.service.ScreenService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,12 @@ public class ClientWebSocketHandler extends TextWebSocketHandler {
     @Autowired
     private CommandService commandService;
     
+    @Autowired
+    private MachineService machineService;
+    
+    @Autowired
+    private ScreenService screenService;
+    
     private Gson gson = new Gson();
     
     @Override
@@ -45,9 +53,22 @@ public class ClientWebSocketHandler extends TextWebSocketHandler {
             String machineId = (String) data.get("machineId");
             String type = (String) data.get("type");
             
+            // Đăng ký client
             if ("client".equals(type) && machineId != null) {
-                // Đăng ký client
+                // Lấy thông tin từ request
+                String name = (String) data.get("name");
+                String ipAddress = (String) data.get("ipAddress");
+                String osName = (String) data.get("osName");
+                String osVersion = (String) data.get("osVersion");
+                
+                // Đăng ký máy tính
+                machineService.registerMachine(machineId, name, ipAddress, osName, osVersion);
+                
+                // Đăng ký WebSocket session
                 commandService.registerClient(machineId, session);
+                
+                // Cập nhật trạng thái online
+                machineService.updateOnlineStatus(machineId, true);
                 
                 // Gửi xác nhận
                 Map<String, Object> response = new HashMap<>();
@@ -56,9 +77,40 @@ public class ClientWebSocketHandler extends TextWebSocketHandler {
                 session.sendMessage(new TextMessage(gson.toJson(response)));
             }
             
-            // Xử lý kết quả từ client (sau khi thực thi lệnh)
+            // Cập nhật lastResponseTime mỗi khi nhận message từ client (giữ máy online)
+            if (machineId != null) {
+                machineService.updateOnlineStatus(machineId, true);
+            }
+            
+            // Xử lý response từ client (sau khi thực thi lệnh)
             if (data.containsKey("result")) {
-                logger.info("Nhận kết quả từ client {}: {}", machineId, data.get("result"));
+                String command = (String) data.get("command");
+                Object result = data.get("result");
+                Long commandId = data.get("commandId") != null ? 
+                    Long.parseLong(data.get("commandId").toString()) : null;
+                
+                logger.info("Nhận kết quả từ client {} - command: {}, result: {}", machineId, command, result);
+                
+                // Cập nhật trạng thái command
+                if (commandId != null) {
+                    String status = result instanceof Map && ((Map<?, ?>) result).containsKey("success") && 
+                        Boolean.TRUE.equals(((Map<?, ?>) result).get("success")) ? "COMPLETED" : "FAILED";
+                    String responseData = gson.toJson(result);
+                    commandService.handleCommandResponse(machineId, commandId, status, responseData);
+                }
+                
+                // Xử lý ảnh màn hình nếu có
+                if ("SCREEN_CAPTURE".equals(command) && result instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> resultMap = (Map<String, Object>) result;
+                    if (resultMap.containsKey("imageData")) {
+                        String imageData = (String) resultMap.get("imageData");
+                        String imageFormat = (String) resultMap.get("imageFormat");
+                        screenService.saveScreenData(machineId, 
+                            java.util.Base64.getDecoder().decode(imageData), 
+                            imageFormat, commandId);
+                    }
+                }
             }
             
         } catch (Exception e) {
@@ -79,4 +131,3 @@ public class ClientWebSocketHandler extends TextWebSocketHandler {
         logger.error("Lỗi WebSocket transport: {}", exception.getMessage(), exception);
     }
 }
-

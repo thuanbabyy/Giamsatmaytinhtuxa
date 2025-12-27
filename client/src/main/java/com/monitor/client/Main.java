@@ -1,21 +1,31 @@
 package com.monitor.client;
 
 import com.monitor.client.command.CommandHandler;
-import com.monitor.client.heartbeat.HeartbeatManager;
-import com.monitor.client.monitor.SystemMonitor;
 import com.monitor.client.websocket.ClientWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.InetAddress;
+import com.google.gson.Gson;
+import oshi.SystemInfo;
+import oshi.software.os.OperatingSystem;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Main class - Entry point của Client Application
  * 
- * Cấu hình:
- * - SERVER_URL: URL của server (mặc định: http://localhost:8080)
- * - MACHINE_ID: ID duy nhất của máy tính
- * - SECRET_KEY: Khóa bí mật để xác thực
+ * Cách chạy:
+ * java -jar client.jar --server.url=http://IP_SERVER:8080 --machine.id=MACHINE_ID
+ * 
+ * Hoặc:
+ * java -jar client.jar
+ * (sẽ dùng giá trị mặc định: localhost:8080)
  */
 public class Main {
     
@@ -23,13 +33,13 @@ public class Main {
     
     // Cấu hình mặc định
     private static final String DEFAULT_SERVER_URL = "http://localhost:8080";
-    private static final String DEFAULT_MACHINE_ID = "MACHINE-" + System.getProperty("user.name");
-    private static final String DEFAULT_SECRET_KEY = "default-secret-key-change-me";
+    private static final String DEFAULT_MACHINE_ID = "MACHINE-" + System.getProperty("user.name") + "-" + 
+        System.getProperty("user.name") + System.currentTimeMillis();
     
-    private SystemMonitor systemMonitor;
-    private HeartbeatManager heartbeatManager;
     private ClientWebSocket webSocketClient;
     private CommandHandler commandHandler;
+    private String serverUrl;
+    private String machineId;
     
     public static void main(String[] args) {
         Main main = new Main();
@@ -42,17 +52,13 @@ public class Main {
     /**
      * Khởi động client
      */
-    public void start() {
-        start(new String[0]);
-    }
-
     public void start(String[] args) {
         logger.info("========================================");
         logger.info("  Hệ Thống Giám Sát Máy Tính - CLIENT");
         logger.info("========================================");
         
-        // Lấy cấu hình từ biến môi trường hoặc dùng giá trị mặc định
-        String serverUrl = getArgValue(args, "--server.url");
+        // Lấy cấu hình từ tham số dòng lệnh hoặc biến môi trường
+        serverUrl = getArgValue(args, "--server.url");
         if (serverUrl == null || serverUrl.isEmpty()) {
             serverUrl = System.getenv("SERVER_URL");
         }
@@ -64,7 +70,7 @@ public class Main {
             serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
         }
         
-        String machineId = getArgValue(args, "--machine.id");
+        machineId = getArgValue(args, "--machine.id");
         if (machineId == null || machineId.isEmpty()) {
             machineId = System.getenv("MACHINE_ID");
         }
@@ -72,32 +78,28 @@ public class Main {
             machineId = DEFAULT_MACHINE_ID;
         }
         
-        String secretKey = getArgValue(args, "--secret.key");
-        if (secretKey == null || secretKey.isEmpty()) {
-            secretKey = System.getenv("SECRET_KEY");
-        }
-        if (secretKey == null || secretKey.isEmpty()) {
-            secretKey = DEFAULT_SECRET_KEY;
-            logger.warn("Đang sử dụng SECRET_KEY mặc định. Hãy thay đổi trong production!");
-        }
-        
         logger.info("Server URL: {}", serverUrl);
         logger.info("Machine ID: {}", machineId);
-        logger.info("Secret Key: {}***", secretKey.substring(0, Math.min(10, secretKey.length())));
         
         try {
-            // Khởi tạo các component
-            systemMonitor = new SystemMonitor();
-            commandHandler = new CommandHandler();
+            // Lấy thông tin hệ thống
+            SystemInfo systemInfo = new SystemInfo();
+            OperatingSystem os = systemInfo.getOperatingSystem();
+            String osName = os.getFamily();
+            String osVersion = os.getVersionInfo().getVersion();
+            String ipAddress = InetAddress.getLocalHost().getHostAddress();
+            String computerName = System.getProperty("user.name");
             
-            // Khởi động Heartbeat Manager
-            heartbeatManager = new HeartbeatManager(
-                systemMonitor,
-                serverUrl,
-                machineId,
-                secretKey
-            );
-            heartbeatManager.start();
+            // Đăng ký với server
+            boolean registered = registerWithServer(machineId, computerName, ipAddress, osName, osVersion);
+            
+            if (!registered) {
+                logger.error("Không thể đăng ký với server. Kiểm tra kết nối mạng và địa chỉ server.");
+                System.exit(1);
+            }
+            
+            // Khởi tạo command handler
+            commandHandler = new CommandHandler(serverUrl, machineId);
             
             // Kết nối WebSocket để nhận lệnh
             String wsUrl = serverUrl.replace("http://", "ws://").replace("https://", "wss://");
@@ -105,15 +107,72 @@ public class Main {
 
             logger.info("WebSocket URL: {}", wsUri);
             
-            webSocketClient = new ClientWebSocket(wsUri, machineId, secretKey, commandHandler);
+            webSocketClient = new ClientWebSocket(wsUri, machineId, commandHandler);
             webSocketClient.connect();
             
+            // Đợi kết nối WebSocket
+            int retries = 0;
+            while (!webSocketClient.isOpen() && retries < 10) {
+                Thread.sleep(1000);
+                retries++;
+            }
+            
+            if (!webSocketClient.isOpen()) {
+                logger.error("Không thể kết nối WebSocket đến server");
+                System.exit(1);
+            }
+            
             logger.info("Client đã khởi động thành công!");
-            logger.info("Đang gửi heartbeat và lắng nghe lệnh từ server...");
+            logger.info("Đang lắng nghe lệnh từ server...");
+            logger.info("Nhấn Ctrl+C để dừng client");
+            
+            // Giữ chương trình chạy
+            while (true) {
+                Thread.sleep(1000);
+            }
             
         } catch (Exception e) {
             logger.error("Lỗi khi khởi động client: {}", e.getMessage(), e);
             System.exit(1);
+        }
+    }
+
+    /**
+     * Đăng ký với server qua REST API
+     */
+    private boolean registerWithServer(String machineId, String name, String ipAddress, String osName, String osVersion) {
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            Gson gson = new Gson();
+            
+            Map<String, String> request = new HashMap<>();
+            request.put("machineId", machineId);
+            request.put("name", name);
+            request.put("ipAddress", ipAddress);
+            request.put("osName", osName);
+            request.put("osVersion", osVersion);
+            
+            String json = gson.toJson(request);
+            
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(serverUrl + "/api/machines/register"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() == 200) {
+                logger.info("Đã đăng ký thành công với server");
+                return true;
+            } else {
+                logger.warn("Đăng ký không thành công. Status code: {}", response.statusCode());
+                return false;
+            }
+            
+        } catch (Exception e) {
+            logger.error("Lỗi khi đăng ký với server: {}", e.getMessage());
+            return false;
         }
     }
 
@@ -139,10 +198,6 @@ public class Main {
     public void stop() {
         logger.info("Đang dừng client...");
         
-        if (heartbeatManager != null) {
-            heartbeatManager.stop();
-        }
-        
         if (webSocketClient != null) {
             webSocketClient.close();
         }
@@ -150,4 +205,3 @@ public class Main {
         logger.info("Client đã dừng.");
     }
 }
-

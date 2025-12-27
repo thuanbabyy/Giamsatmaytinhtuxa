@@ -4,39 +4,57 @@ import javax.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * Entity đại diện cho một máy tính được giám sát
+ * Entity đại diện cho một máy tính client được quản lý
  */
 @Entity
-@Table(name = "machines")
+@Table(name = "machines", indexes = {
+    @Index(name = "idx_machines_online", columnList = "is_online"),
+    @Index(name = "idx_machines_ip", columnList = "ip_address")
+})
 public class Machine {
     
     @Id
-    @Column(unique = true, nullable = false)
+    @Column(name = "machine_id", length = 100, nullable = false)
     private String machineId;
     
-    @Column(nullable = false)
-    private String secretKey;
-    
+    @Column(name = "name", length = 255)
     private String name;
-    private String description;
+    
+    @Column(name = "ip_address", length = 50)
     private String ipAddress;
+    
+    @Column(name = "os_name", length = 100)
     private String osName;
+    
+    @Column(name = "os_version", length = 100)
     private String osVersion;
     
-    @Column(nullable = false)
-    private LocalDateTime lastHeartbeat;
+    @Column(name = "is_online", nullable = false)
+    private Boolean isOnline = false;
     
-    @Column(nullable = false)
-    private boolean isOnline;
+    @Column(name = "last_response_time")
+    private LocalDateTime lastResponseTime;
     
-    private LocalDateTime createdAt;
+    @Column(name = "registered_at", nullable = false, updatable = false)
+    private LocalDateTime registeredAt;
+    
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+    
+    @Column(name = "secret_key", length = 255)
+    private String secretKey;
     
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-        isOnline = false;
+        if (registeredAt == null) {
+            registeredAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+        if (isOnline == null) {
+            isOnline = false;
+        }
     }
     
     @PreUpdate
@@ -53,28 +71,12 @@ public class Machine {
         this.machineId = machineId;
     }
     
-    public String getSecretKey() {
-        return secretKey;
-    }
-    
-    public void setSecretKey(String secretKey) {
-        this.secretKey = secretKey;
-    }
-    
     public String getName() {
         return name;
     }
     
     public void setName(String name) {
         this.name = name;
-    }
-    
-    public String getDescription() {
-        return description;
-    }
-    
-    public void setDescription(String description) {
-        this.description = description;
     }
     
     public String getIpAddress() {
@@ -101,28 +103,28 @@ public class Machine {
         this.osVersion = osVersion;
     }
     
-    public LocalDateTime getLastHeartbeat() {
-        return lastHeartbeat;
-    }
-    
-    public void setLastHeartbeat(LocalDateTime lastHeartbeat) {
-        this.lastHeartbeat = lastHeartbeat;
-    }
-    
-    public boolean isOnline() {
+    public Boolean getIsOnline() {
         return isOnline;
     }
     
-    public void setOnline(boolean online) {
-        isOnline = online;
+    public void setIsOnline(Boolean isOnline) {
+        this.isOnline = isOnline;
     }
     
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public LocalDateTime getLastResponseTime() {
+        return lastResponseTime;
     }
     
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setLastResponseTime(LocalDateTime lastResponseTime) {
+        this.lastResponseTime = lastResponseTime;
+    }
+    
+    public LocalDateTime getRegisteredAt() {
+        return registeredAt;
+    }
+    
+    public void setRegisteredAt(LocalDateTime registeredAt) {
+        this.registeredAt = registeredAt;
     }
     
     public LocalDateTime getUpdatedAt() {
@@ -132,5 +134,29 @@ public class Machine {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+    
+    public String getSecretKey() {
+        return secretKey;
+    }
+    
+    public void setSecretKey(String secretKey) {
+        this.secretKey = secretKey;
+    }
+    
+    // Helper methods for compatibility
+    public boolean isOnline() {
+        return isOnline != null && isOnline;
+    }
+    
+    public void setOnline(boolean online) {
+        this.isOnline = online;
+    }
+    
+    public LocalDateTime getLastHeartbeat() {
+        return lastResponseTime;
+    }
+    
+    public void setLastHeartbeat(LocalDateTime lastHeartbeat) {
+        this.lastResponseTime = lastHeartbeat;
+    }
 }
-

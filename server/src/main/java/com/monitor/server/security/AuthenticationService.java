@@ -44,7 +44,7 @@ public class AuthenticationService {
                 newMachine.setSecretKey("default-secret-key-change-me"); // Khớp với client default
                 newMachine.setName("Máy tính " + machineId);
                 newMachine.setLastHeartbeat(java.time.LocalDateTime.now());
-                newMachine.setOnline(true);
+                newMachine.setIsOnline(true);
                 machineRepository.save(newMachine);
                 logger.info("Đã tạo machine mới: {} với secret key mặc định", machineId);
                 // Sau khi tạo, cần xác thực lại với secret key mới

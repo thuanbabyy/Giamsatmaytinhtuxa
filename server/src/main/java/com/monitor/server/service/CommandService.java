@@ -1,21 +1,25 @@
 package com.monitor.server.service;
 
 import com.google.gson.Gson;
+import com.monitor.server.model.Command;
+import com.monitor.server.repository.CommandRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Service quản lý gửi lệnh đến client qua WebSocket
- * - Lưu trữ WebSocket sessions của các client
- * - Gửi lệnh điều khiển đến client
  */
 @Service
 public class CommandService {
@@ -27,6 +31,12 @@ public class CommandService {
     // Lưu trữ mapping session -> machineId
     private final Map<WebSocketSession, String> sessionToMachineId = new ConcurrentHashMap<>();
     
+    @Autowired
+    private CommandRepository commandRepository;
+    
+    @Autowired
+    private MachineService machineService;
+    
     private Gson gson = new Gson();
     
     /**
@@ -35,6 +45,7 @@ public class CommandService {
     public void registerClient(String machineId, WebSocketSession session) {
         clientSessions.put(machineId, session);
         sessionToMachineId.put(session, machineId);
+        machineService.updateOnlineStatus(machineId, true);
         logger.info("Đã đăng ký client: {}", machineId);
     }
     
@@ -46,6 +57,7 @@ public class CommandService {
         if (session != null) {
             sessionToMachineId.remove(session);
         }
+        machineService.updateOnlineStatus(machineId, false);
         logger.info("Đã hủy đăng ký client: {}", machineId);
     }
     
@@ -56,42 +68,126 @@ public class CommandService {
         String machineId = sessionToMachineId.remove(session);
         if (machineId != null) {
             clientSessions.remove(machineId);
+            machineService.updateOnlineStatus(machineId, false);
             logger.info("Đã hủy đăng ký client theo session: {}", machineId);
         }
     }
     
     /**
-     * Gửi lệnh đến client
-     * @param machineId ID của máy tính
-     * @param command Lệnh cần gửi (KILL_PROCESS, SHUTDOWN, LOCK_KEYBOARD, SCREENSHOT)
-     * @param parameter Tham số của lệnh (ví dụ: PID cho KILL_PROCESS)
-     * @return true nếu gửi thành công
+     * Gửi lệnh khóa bàn phím chuột
      */
-    public boolean sendCommand(String machineId, String command, String parameter) {
+    @Transactional
+    public boolean sendLockCommand(String machineId) {
+        return sendCommand(machineId, "LOCK", null, null);
+    }
+    
+    /**
+     * Gửi lệnh mở khóa bàn phím chuột
+     */
+    @Transactional
+    public boolean sendUnlockCommand(String machineId) {
+        return sendCommand(machineId, "UNLOCK", null, null);
+    }
+    
+    /**
+     * Gửi lệnh chụp màn hình
+     */
+    @Transactional
+    public boolean sendScreenCaptureCommand(String machineId) {
+        return sendCommand(machineId, "SCREEN_CAPTURE", null, null);
+    }
+    
+    /**
+     * Gửi lệnh đến client
+     */
+    @Transactional
+    public boolean sendCommand(String machineId, String commandType, String commandData, Map<String, Object> extraData) {
         WebSocketSession session = clientSessions.get(machineId);
         
         if (session == null || !session.isOpen()) {
             logger.warn("Không tìm thấy session hoặc session đã đóng cho machine: {}", machineId);
+            // Tạo command với status FAILED
+            createCommand(machineId, commandType, commandData, "FAILED", "Client không online");
             return false;
         }
         
         try {
-            // Tạo payload lệnh
-            Map<String, Object> commandData = new HashMap<>();
-            commandData.put("command", parameter != null ? command + " " + parameter : command);
-            commandData.put("machineId", machineId);
-            commandData.put("timestamp", System.currentTimeMillis());
+            // Tạo command trong database
+            Command command = createCommand(machineId, commandType, commandData, "SENT", null);
             
-            String jsonCommand = gson.toJson(commandData);
+            // Tạo payload lệnh
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("command", commandType);
+            payload.put("machineId", machineId);
+            payload.put("commandId", command.getId());
+            payload.put("timestamp", System.currentTimeMillis());
+            
+            if (commandData != null) {
+                payload.put("data", commandData);
+            }
+            
+            if (extraData != null) {
+                payload.putAll(extraData);
+            }
+            
+            String jsonCommand = gson.toJson(payload);
             session.sendMessage(new TextMessage(jsonCommand));
             
-            logger.info("Đã gửi lệnh {} đến machine: {}", command, machineId);
+            // Cập nhật trạng thái online
+            machineService.updateOnlineStatus(machineId, true);
+            
+            logger.info("Đã gửi lệnh {} đến machine: {}", commandType, machineId);
             return true;
             
         } catch (IOException e) {
             logger.error("Lỗi khi gửi lệnh đến machine {}: {}", machineId, e.getMessage());
+            updateCommandStatus(machineId, commandType, "FAILED", "Lỗi gửi: " + e.getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Tạo command mới trong database
+     */
+    private Command createCommand(String machineId, String commandType, String commandData, String status, String responseData) {
+        Command command = new Command();
+        command.setMachineId(machineId);
+        command.setCommandType(commandType);
+        command.setCommandData(commandData);
+        command.setStatus(status);
+        command.setResponseData(responseData);
+        return commandRepository.save(command);
+    }
+    
+    /**
+     * Cập nhật trạng thái command
+     */
+    @Transactional
+    public void updateCommandStatus(String machineId, String commandType, String status, String responseData) {
+        List<Command> commands = commandRepository.findByMachineIdAndCommandType(machineId, commandType);
+        if (!commands.isEmpty()) {
+            Command latest = commands.get(0);
+            latest.setStatus(status);
+            latest.setResponseData(responseData);
+            if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
+                latest.setExecutedAt(LocalDateTime.now());
+            }
+            commandRepository.save(latest);
+        }
+    }
+    
+    /**
+     * Xử lý response từ client
+     */
+    @Transactional
+    public void handleCommandResponse(String machineId, Long commandId, String status, String responseData) {
+        commandRepository.findById(commandId).ifPresent(command -> {
+            command.setStatus(status);
+            command.setResponseData(responseData);
+            command.setExecutedAt(LocalDateTime.now());
+            commandRepository.save(command);
+            machineService.updateOnlineStatus(machineId, true);
+        });
     }
     
     /**
@@ -108,5 +204,11 @@ public class CommandService {
     public java.util.Set<String> getOnlineClients() {
         return clientSessions.keySet();
     }
+    
+    /**
+     * Lấy lịch sử lệnh của máy
+     */
+    public List<Command> getCommandHistory(String machineId) {
+        return commandRepository.findByMachineIdOrderByCreatedAtDesc(machineId);
+    }
 }
-

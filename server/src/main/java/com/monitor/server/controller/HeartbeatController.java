@@ -44,6 +44,25 @@ public class HeartbeatController {
     private Gson gson = new Gson();
     
     /**
+     * API Info - Trả về thông tin về API
+     */
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> apiInfo() {
+        Map<String, Object> info = new HashMap<>();
+        info.put("name", "Hệ Thống Giám Sát Máy Tính - API");
+        info.put("version", "1.0");
+        info.put("endpoints", Map.of(
+            "machines", "/api/machines",
+            "commands", "/api/commands",
+            "notifications", "/api/notifications",
+            "screen", "/api/screen",
+            "heartbeat", "/api/heartbeat",
+            "alerts", "/api/alerts"
+        ));
+        return ResponseEntity.ok(info);
+    }
+    
+    /**
      * Nhận heartbeat từ client
      */
     @PostMapping("/heartbeat")

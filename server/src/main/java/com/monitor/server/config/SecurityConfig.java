@@ -3,10 +3,9 @@ package com.monitor.server.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -15,21 +14,10 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+public class SecurityConfig {
 
-
-    @Override
-    public void configure(WebSecurity web) throws Exception {
-        web.ignoring().antMatchers(
-            "/ws-client/**",
-            "/ws-stomp/**",
-            "/topic/**",
-            "/app/**",
-            "/user/**"
-        );
-    }
- 
-    protected void configure(HttpSecurity http) throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .cors().and()
             .csrf().disable()
@@ -38,10 +26,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
                 .antMatchers(
                     "/",
-                    "/api/heartbeat",
-                    "/api/heartbeat/**",
-                    "/api/machines/**",
-                    "/api/alerts/**",
+                    "/server",
+                    "/api",
+                    "/api/**",
                     "/ws-client/**",
                     "/ws-stomp/**",
                     "/topic/**",
@@ -67,15 +54,20 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .and()
             .formLogin().disable()
             .httpBasic().disable();
+        
+        return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // Dùng allowedOriginPatterns thay vì allowedOrigins để có thể dùng "*" với allowCredentials
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
+        // Tắt allowCredentials để tránh xung đột với "*" pattern
+        configuration.setAllowCredentials(false);
+        configuration.setMaxAge(3600L);
         // Explicitly allow WebSocket headers
         configuration.setExposedHeaders(Arrays.asList(
             "Access-Control-Allow-Origin",

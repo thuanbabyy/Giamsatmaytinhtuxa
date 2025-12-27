@@ -131,7 +131,7 @@ public class MetricService {
             if (machineOpt.isPresent()) {
                 Machine machine = machineOpt.get();
                 machine.setLastHeartbeat(LocalDateTime.now());
-                machine.setOnline(true);
+                machine.setIsOnline(true);
                 machineRepository.save(machine);
             }
         } catch (Exception e) {

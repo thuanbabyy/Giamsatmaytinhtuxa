@@ -1,0 +1,65 @@
+# ============================================
+# Cấu hình Server - Hệ Thống Giám Sát Máy Tính
+# ============================================
+
+server:
+  port: 8080
+
+# ============================================
+# Database Configuration - SQL Server
+# ============================================
+spring:
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=Giamsatmaytinhtuxa;encrypt=true;trustServerCertificate=true;
+    username: sa
+    password: 1
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.SQLServerDialect
+  
+  # CORS Configuration
+  mvc:
+    cors:
+      allowed-origin-patterns: "*"
+      allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+      allowed-headers: "*"
+      allow-credentials: true
+  
+  # WebSocket configuration
+  websocket:
+    allowed-origins: "*"
+  
+  # Static resource handling
+  web:
+    resources:
+      static-locations: classpath:/static/
+
+# ============================================
+# Logging Configuration
+# ============================================
+logging:
+  level:
+    com.monitor.server: INFO
+    org.springframework.web: INFO
+    org.hibernate: WARN
+
+# ============================================
+# Cấu hình Hệ Thống
+# ============================================
+monitor:
+  # Timeout để coi máy là offline nếu không phản hồi (giây)
+  offline:
+    timeout: 60
+  # Cấu hình cảnh báo
+  alert:
+    offline:
+      timeout: 60
+

@@ -123,7 +123,7 @@ public class AlertService {
                     
                     if (secondsSinceLastHeartbeat > offlineTimeoutSeconds) {
                         // Máy đã offline
-                        machine.setOnline(false);
+                        machine.setIsOnline(false);
                         machineRepository.save(machine);
                         
                         // Tạo cảnh báo

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Giám Sát Máy Tính - Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .machines-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .machine-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            background: #f9f9f9;
+            transition: all 0.3s;
+        }
+        
+        .machine-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        .machine-card.online {
+            border-color: #4caf50;
+            background: #f1f8f4;
+        }
+        
+        .machine-card.offline {
+            border-color: #f44336;
+            background: #fff5f5;
+        }
+        
+        .machine-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .machine-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status-online {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #f44336;
+            color: white;
+        }
+        
+        .machine-info {
+            margin-bottom: 15px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .machine-info div {
+            margin: 5px 0;
+        }
+        
+        .machine-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            overflow: auto;
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .close {
+            font-size: 2em;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close:hover {
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .screen-viewer {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .screen-viewer img {
+            max-width: 100%;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.5em;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            transform: rotate(180deg) scale(1.1);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ Hệ Thống Giám Sát Máy Tính</h1>
+            <p>Quản lý và điều khiển các máy tính trong phòng tin học</p>
+        </div>
+        
+        <div class="content">
+            <div id="machines-container" class="machines-grid">
+                <div class="loading">Đang tải danh sách máy tính...</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Gửi Thông Báo -->
+    <div id="notificationModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Gửi Thông Báo</h2>
+                <span class="close" onclick="closeModal('notificationModal')">&times;</span>
+            </div>
+            <form id="notificationForm">
+                <div class="form-group">
+                    <label>Tiêu đề:</label>
+                    <input type="text" id="notificationTitle" placeholder="Nhập tiêu đề thông báo">
+                </div>
+                <div class="form-group">
+                    <label>Nội dung:</label>
+                    <textarea id="notificationMessage" placeholder="Nhập nội dung thông báo" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Loại thông báo:</label>
+                    <select id="notificationType">
+                        <option value="INFO">Thông tin</option>
+                        <option value="WARNING">Cảnh báo</option>
+                        <option value="ERROR">Lỗi</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Gửi Thông Báo</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Quan Sát Màn Hình -->
+    <div id="screenModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Quan Sát Màn Hình</h2>
+                <span class="close" onclick="closeModal('screenModal')">&times;</span>
+            </div>
+            <div class="screen-viewer">
+                <div id="screenLoading" class="loading">Đang tải ảnh màn hình...</div>
+                <img id="screenImage" style="display: none;" alt="Màn hình">
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="captureScreen()">Chụp Màn Hình</button>
+                    <button class="btn btn-success" onclick="startScreenMonitoring()">Bắt Đầu Quan Sát</button>
+                    <button class="btn btn-danger" onclick="stopScreenMonitoring()">Dừng Quan Sát</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="refresh-btn" onclick="loadMachines()" title="Làm mới">🔄</button>
+    
+    <script>
+        let currentMachineId = null;
+        let screenMonitoringInterval = null;
+        
+        // Load danh sách máy tính
+        async function loadMachines() {
+            try {
+                const response = await fetch('/api/machines');
+                const machines = await response.json();
+                
+                const container = document.getElementById('machines-container');
+                container.innerHTML = '';
+                
+                if (machines.length === 0) {
+                    container.innerHTML = '<div class="loading">Chưa có máy tính nào được đăng ký</div>';
+                    return;
+                }
+                
+                machines.forEach(machine => {
+                    const card = createMachineCard(machine);
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Lỗi khi tải danh sách máy:', error);
+                document.getElementById('machines-container').innerHTML = 
+                    '<div class="loading" style="color: red;">Lỗi khi tải danh sách máy tính</div>';
+            }
+        }
+        
+        // Tạo card máy tính
+        function createMachineCard(machine) {
+            const card = document.createElement('div');
+            card.className = `machine-card ${machine.isOnline ? 'online' : 'offline'}`;
+            
+            card.innerHTML = `
+                <div class="machine-header">
+                    <div class="machine-name">${machine.name || machine.machineId}</div>
+                    <span class="status-badge ${machine.isOnline ? 'status-online' : 'status-offline'}">
+                        ${machine.isOnline ? '🟢 Online' : '🔴 Offline'}
+                    </span>
+                </div>
+                <div class="machine-info">
+                    <div><strong>ID:</strong> ${machine.machineId}</div>
+                    <div><strong>IP:</strong> ${machine.ipAddress || 'N/A'}</div>
+                    <div><strong>OS:</strong> ${machine.osName || 'N/A'} ${machine.osVersion || ''}</div>
+                    <div><strong>Đăng ký:</strong> ${new Date(machine.registeredAt).toLocaleString('vi-VN')}</div>
+                </div>
+                <div class="machine-actions">
+                    <button class="btn btn-primary" onclick="openNotificationModal('${machine.machineId}')" 
+                        ${!machine.isOnline ? 'disabled' : ''}>📢 Thông Báo</button>
+                    <button class="btn btn-success" onclick="openScreenModal('${machine.machineId}')" 
+                        ${!machine.isOnline ? 'disabled' : ''}>🖼️ Màn Hình</button>
+                    <button class="btn btn-warning" onclick="lockMachine('${machine.machineId}')" 
+                        ${!machine.isOnline ? 'disabled' : ''}>🔒 Khóa</button>
+                    <button class="btn btn-danger" onclick="unlockMachine('${machine.machineId}')" 
+                        ${!machine.isOnline ? 'disabled' : ''}>🔓 Mở Khóa</button>
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        // Mở modal thông báo
+        function openNotificationModal(machineId) {
+            currentMachineId = machineId;
+            document.getElementById('notificationModal').style.display = 'block';
+            document.getElementById('notificationForm').reset();
+        }
+        
+        // Đóng modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // Gửi thông báo
+        document.getElementById('notificationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById('notificationTitle').value;
+            const message = document.getElementById('notificationMessage').value;
+            const type = document.getElementById('notificationType').value;
+            
+            try {
+                const response = await fetch(`/api/notifications/${currentMachineId}/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ title, message, type })
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                
+                if (result.success) {
+                    closeModal('notificationModal');
+                }
+            } catch (error) {
+                alert('Lỗi khi gửi thông báo: ' + error.message);
+            }
+        });
+        
+        // Mở modal màn hình
+        function openScreenModal(machineId) {
+            currentMachineId = machineId;
+            document.getElementById('screenModal').style.display = 'block';
+            document.getElementById('screenImage').style.display = 'none';
+            document.getElementById('screenLoading').style.display = 'block';
+            loadLatestScreen();
+        }
+        
+        // Chụp màn hình
+        async function captureScreen() {
+            try {
+                const response = await fetch(`/api/commands/${currentMachineId}/screen-capture`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                
+                // Đợi 2 giây rồi tải ảnh
+                setTimeout(loadLatestScreen, 2000);
+            } catch (error) {
+                alert('Lỗi khi chụp màn hình: ' + error.message);
+            }
+        }
+        
+        // Tải ảnh màn hình mới nhất
+        async function loadLatestScreen() {
+            try {
+                const response = await fetch(`/api/screen/${currentMachineId}/latest`);
+                
+                if (response.ok && response.headers.get('content-type').startsWith('image/')) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('screenImage').src = url;
+                    document.getElementById('screenImage').style.display = 'block';
+                    document.getElementById('screenLoading').style.display = 'none';
+                } else {
+                    document.getElementById('screenLoading').innerHTML = 'Chưa có ảnh màn hình';
+                }
+            } catch (error) {
+                document.getElementById('screenLoading').innerHTML = 'Lỗi khi tải ảnh màn hình';
+            }
+        }
+        
+        // Bắt đầu quan sát màn hình
+        function startScreenMonitoring() {
+            if (screenMonitoringInterval) {
+                clearInterval(screenMonitoringInterval);
+            }
+            
+            captureScreen();
+            screenMonitoringInterval = setInterval(() => {
+                captureScreen();
+                setTimeout(loadLatestScreen, 2000);
+            }, 5000); // Chụp mỗi 5 giây
+            
+            alert('Đã bắt đầu quan sát màn hình (tự động chụp mỗi 5 giây)');
+        }
+        
+        // Dừng quan sát màn hình
+        function stopScreenMonitoring() {
+            if (screenMonitoringInterval) {
+                clearInterval(screenMonitoringInterval);
+                screenMonitoringInterval = null;
+                alert('Đã dừng quan sát màn hình');
+            }
+        }
+        
+        // Khóa máy
+        async function lockMachine(machineId) {
+            if (!confirm('Bạn có chắc muốn khóa bàn phím và chuột của máy này?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/commands/${machineId}/lock`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                loadMachines();
+            } catch (error) {
+                alert('Lỗi khi khóa máy: ' + error.message);
+            }
+        }
+        
+        // Mở khóa máy
+        async function unlockMachine(machineId) {
+            try {
+                const response = await fetch(`/api/commands/${machineId}/unlock`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                loadMachines();
+            } catch (error) {
+                alert('Lỗi khi mở khóa máy: ' + error.message);
+            }
+        }
+        
+        // Đóng modal khi click bên ngoài
+        window.onclick = function(event) {
+            const notificationModal = document.getElementById('notificationModal');
+            const screenModal = document.getElementById('screenModal');
+            
+            if (event.target === notificationModal) {
+                closeModal('notificationModal');
+            }
+            if (event.target === screenModal) {
+                closeModal('screenModal');
+                stopScreenMonitoring();
+            }
+        }
+        
+        // Tự động làm mới danh sách mỗi 5 giây
+        setInterval(loadMachines, 5000);
+        
+        // Load lần đầu
+        loadMachines();
+    </script>
+</body>
+</html>
+
