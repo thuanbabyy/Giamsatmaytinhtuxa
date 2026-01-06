@@ -1,5 +1,7 @@
 package com.monitor.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -16,19 +18,21 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class MonitorServerApplication {
     
+    private static final Logger logger = LoggerFactory.getLogger(MonitorServerApplication.class);
+    
     public static void main(String[] args) {
-        System.out.println("========================================");
-        System.out.println("  Hệ Thống Giám Sát Máy Tính - SERVER");
-        System.out.println("========================================");
-        System.out.println("Đang khởi động server...");
+        logger.info("========================================");
+        logger.info("  Hệ Thống Giám Sát Máy Tính - SERVER");
+        logger.info("========================================");
+        logger.info("Đang khởi động server...");
         
         SpringApplication.run(MonitorServerApplication.class, args);
         
-        System.out.println("Server đã khởi động thành công!");
-        System.out.println("REST API: http://localhost:8080/api");
-        System.out.println("Giao diện quản lý: http://localhost:8080/server");
-        System.out.println("WebSocket (raw client): ws://localhost:8080/ws-client");
-        System.out.println("WebSocket (STOMP): ws://localhost:8080/ws-stomp");
+        logger.info("Server đã khởi động thành công!");
+        logger.info("REST API: http://localhost:8080/api");
+        logger.info("Giao diện quản lý: http://localhost:8080/server");
+        logger.info("WebSocket (raw client): ws://localhost:8080/ws-client");
+        logger.info("WebSocket (STOMP): ws://localhost:8080/ws-stomp");
     }
 }
 
