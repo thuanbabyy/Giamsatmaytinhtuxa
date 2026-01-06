@@ -22,26 +22,26 @@ import oshi.software.os.OperatingSystem;
  * Main class - Entry point của Client Application
  * 
  * Cách chạy:
- * java -jar client.jar --server.url=http://IP_SERVER:8080 --machine.id=MACHINE_ID
+ * java -jar client.jar --server.url=http://IP_SERVER:8080
+ * --machine.id=MACHINE_ID
  * 
  * Hoặc:
  * java -jar client.jar
  * (sẽ dùng giá trị mặc định: localhost:8080)
  */
 public class Main {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
-    
+
     // Cấu hình mặc định
     private static final String DEFAULT_SERVER_URL = "http://localhost:8080";
-    private static final String DEFAULT_MACHINE_ID = "MACHINE-" + System.getProperty("user.name") + "-" + 
-        System.getProperty("user.name") + System.currentTimeMillis();
-    
+    private static final String DEFAULT_MACHINE_ID = generateStableMachineId();
+
     private ClientWebSocket webSocketClient;
     private CommandHandler commandHandler;
     private String serverUrl;
     private String machineId;
-    
+
     public static void main(String[] args) {
         // Thiết lập encoding UTF-8 cho console (tránh lỗi dấu '?' trên Windows)
         try {
@@ -53,11 +53,11 @@ public class Main {
 
         Main main = new Main();
         main.start(args);
-        
+
         // Đăng ký shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(main::stop));
     }
-    
+
     /**
      * Khởi động client
      */
@@ -65,7 +65,7 @@ public class Main {
         logger.info("========================================");
         logger.info("  Hệ Thống Giám Sát Máy Tính - CLIENT");
         logger.info("========================================");
-        
+
         // Lấy cấu hình từ tham số dòng lệnh hoặc biến môi trường
         serverUrl = getArgValue(args, "--server.url");
         if (serverUrl == null || serverUrl.isEmpty()) {
@@ -78,7 +78,7 @@ public class Main {
         while (serverUrl.endsWith("/")) {
             serverUrl = serverUrl.substring(0, serverUrl.length() - 1);
         }
-        
+
         machineId = getArgValue(args, "--machine.id");
         if (machineId == null || machineId.isEmpty()) {
             machineId = System.getenv("MACHINE_ID");
@@ -86,10 +86,10 @@ public class Main {
         if (machineId == null || machineId.isEmpty()) {
             machineId = DEFAULT_MACHINE_ID;
         }
-        
+
         logger.info("Server URL: {}", serverUrl);
         logger.info("Machine ID: {}", machineId);
-        
+
         try {
             // Lấy thông tin hệ thống
             SystemInfo systemInfo = new SystemInfo();
@@ -98,48 +98,54 @@ public class Main {
             String osVersion = os.getVersionInfo().getVersion();
             String ipAddress = InetAddress.getLocalHost().getHostAddress();
             String computerName = System.getProperty("user.name");
-            
+
             // Đăng ký với server
             boolean registered = registerWithServer(machineId, computerName, ipAddress, osName, osVersion);
-            
+
             if (!registered) {
                 logger.error("Không thể đăng ký với server. Kiểm tra kết nối mạng và địa chỉ server.");
                 System.exit(1);
             }
-            
+
             // Khởi tạo command handler
             commandHandler = new CommandHandler(serverUrl, machineId);
-            
+
             // Kết nối WebSocket để nhận lệnh
             String wsUrl = serverUrl.replace("http://", "ws://").replace("https://", "wss://");
             URI wsUri = new URI(wsUrl + "/ws-client");
 
             logger.info("WebSocket URL: {}", wsUri);
-            
+
             webSocketClient = new ClientWebSocket(wsUri, machineId, commandHandler);
             webSocketClient.connect();
-            
+
             // Đợi kết nối WebSocket
             int retries = 0;
             while (!webSocketClient.isOpen() && retries < 10) {
                 Thread.sleep(1000);
                 retries++;
             }
-            
+
             if (!webSocketClient.isOpen()) {
                 logger.error("Không thể kết nối WebSocket đến server");
                 System.exit(1);
             }
-            
+
+            // Khởi động monitor thread để gửi CPU/RAM metrics
+            com.monitor.client.monitor.SystemMonitorThread monitorThread = new com.monitor.client.monitor.SystemMonitorThread(
+                    serverUrl, machineId, 5);
+            monitorThread.start();
+
             logger.info("Client đã khởi động thành công!");
             logger.info("Đang lắng nghe lệnh từ server...");
+            logger.info("Đang gửi metrics hệ thống mỗi 5 giây...");
             logger.info("Nhấn Ctrl+C để dừng client");
-            
+
             // Giữ chương trình chạy
             while (true) {
                 Thread.sleep(1000);
             }
-            
+
         } catch (Exception e) {
             logger.error("Lỗi khi khởi động client: {}", e.getMessage(), e);
             System.exit(1);
@@ -149,28 +155,29 @@ public class Main {
     /**
      * Đăng ký với server qua REST API
      */
-    private boolean registerWithServer(String machineId, String name, String ipAddress, String osName, String osVersion) {
+    private boolean registerWithServer(String machineId, String name, String ipAddress, String osName,
+            String osVersion) {
         try {
             HttpClient client = HttpClient.newHttpClient();
             Gson gson = new Gson();
-            
+
             Map<String, String> request = new HashMap<>();
             request.put("machineId", machineId);
             request.put("name", name);
             request.put("ipAddress", ipAddress);
             request.put("osName", osName);
             request.put("osVersion", osVersion);
-            
+
             String json = gson.toJson(request);
-            
+
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(serverUrl + "/api/machines/register"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build();
-            
+                    .uri(URI.create(serverUrl + "/api/machines/register"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            
+
             if (response.statusCode() == 200) {
                 logger.info("Đã đăng ký thành công với server");
                 return true;
@@ -178,10 +185,27 @@ public class Main {
                 logger.warn("Đăng ký không thành công. Status code: {}", response.statusCode());
                 return false;
             }
-            
+
         } catch (Exception e) {
             logger.error("Lỗi khi đăng ký với server: {}", e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Tạo Machine ID ổn định dựa trên hostname và username
+     * Machine ID này sẽ giống nhau mỗi lần client chạy trên cùng một máy
+     */
+    private static String generateStableMachineId() {
+        try {
+            String hostname = InetAddress.getLocalHost().getHostName();
+            String username = System.getProperty("user.name");
+            return "MACHINE-" + username + "-" + hostname;
+        } catch (Exception e) {
+            // Nếu không lấy được hostname, dùng username + OS name
+            String username = System.getProperty("user.name");
+            String osName = System.getProperty("os.name").replaceAll("\\s+", "");
+            return "MACHINE-" + username + "-" + osName;
         }
     }
 
@@ -200,17 +224,17 @@ public class Main {
         }
         return null;
     }
-    
+
     /**
      * Dừng client
      */
     public void stop() {
         logger.info("Đang dừng client...");
-        
+
         if (webSocketClient != null) {
             webSocketClient.close();
         }
-        
+
         logger.info("Client đã dừng.");
     }
 }

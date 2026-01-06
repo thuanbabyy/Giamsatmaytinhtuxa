@@ -16,7 +16,9 @@ public class ClientWebSocketTester {
         // Sample message from your logs (data as String)
         String sample = "{\"machineId\":\"MACHINE-Lilmon-Lilmon1767681678185\",\"data\":\"{\\\"title\\\":\\\"1\\\",\\\"message\\\":\\\"a\\\",\\\"type\\\":\\\"INFO\\\"}\",\"notificationId\":4,\"title\":\"1\",\"message\":\"a\",\"type\":\"INFO\",\"commandId\":20,\"command\":\"NOTIFICATION\",\"timestamp\":1767681702579}";
 
-        System.out.println("Invoking onMessage with sample payload...");
+        System.out.println("Invoking onOpen to start keepalive and then onMessage with sample payload...");
+        // Simulate open so keepalive starts (in real run this is called by WebSocket library)
+        client.onOpen(null);
         client.onMessage(sample);
 
         // Vì client chưa kết nối WebSocket trong test này, việc gửi response sẽ ném WebsocketNotConnectedException.

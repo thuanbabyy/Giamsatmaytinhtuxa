@@ -12,6 +12,11 @@ import oshi.software.os.OperatingSystem;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket Client để nhận lệnh từ server
@@ -23,6 +28,16 @@ public class ClientWebSocket extends WebSocketClient {
     private String machineId;
     private CommandHandler commandHandler;
     private Gson gson;
+
+    // Keepalive and reconnection helpers
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "WebSocket-KeepAlive");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> keepAliveFuture;
+    private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
+    private volatile boolean reconnecting = false;
     
     public ClientWebSocket(URI serverUri, String machineId, CommandHandler commandHandler) {
         super(serverUri);
@@ -34,12 +49,16 @@ public class ClientWebSocket extends WebSocketClient {
     @Override
     public void onOpen(ServerHandshake handshake) {
         logger.info("Đã kết nối WebSocket đến server");
-        
+
+        // Reset reconnect attempts
+        reconnectAttempts.set(0);
+        reconnecting = false;
+
         // Gửi thông tin đăng ký
         Map<String, Object> auth = new HashMap<>();
         auth.put("machineId", machineId);
         auth.put("type", "client");
-        
+
         // Thêm thông tin hệ thống
         try {
             SystemInfo si = new SystemInfo();
@@ -51,8 +70,40 @@ public class ClientWebSocket extends WebSocketClient {
         } catch (Exception e) {
             logger.warn("Không thể lấy thông tin hệ thống: {}", e.getMessage());
         }
-        
-        send(gson.toJson(auth));
+
+        try {
+            if (isOpen()) {
+                send(gson.toJson(auth));
+            } else {
+                logger.warn("Socket chưa open khi gửi auth, bỏ qua gửi auth lần này");
+            }
+        } catch (Exception e) {
+            logger.warn("Không thể gửi auth: {}", e.getMessage());
+        }
+
+        // Start keepalive ping (every 20s)
+        try {
+            if (keepAliveFuture != null && !keepAliveFuture.isCancelled()) {
+                keepAliveFuture.cancel(true);
+            }
+            keepAliveFuture = scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (!isOpen()) {
+                        // If socket not open, skip send (reconnect thread will handle reconnect)
+                        return;
+                    }
+                    Map<String, Object> ping = new HashMap<>();
+                    ping.put("type", "KEEPALIVE");
+                    ping.put("machineId", machineId);
+                    ping.put("timestamp", System.currentTimeMillis());
+                    send(gson.toJson(ping));
+                } catch (Exception e) {
+                    logger.warn("Keepalive send failed: {}", e.getMessage());
+                }
+            }, 20, 20, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            logger.warn("Không thể bắt đầu keepalive: {}", e.getMessage());
+        }
     }
     
     @Override
@@ -145,25 +196,53 @@ public class ClientWebSocket extends WebSocketClient {
     @Override
     public void onClose(int code, String reason, boolean remote) {
         logger.warn("WebSocket đã đóng. Code: {}, Reason: {}", code, reason);
-        
-        // Tự động kết nối lại sau 5 giây
-        new Thread(() -> {
-            try {
-                Thread.sleep(5000);
-                if (!isOpen()) {
-                    logger.info("Đang thử kết nối lại WebSocket...");
-                    reconnect();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                logger.error("Lỗi khi reconnect: {}", e.getMessage());
+
+        // Stop keepalive
+        try {
+            if (keepAliveFuture != null) {
+                keepAliveFuture.cancel(true);
+                keepAliveFuture = null;
             }
-        }).start();
+        } catch (Exception ignored) {}
+
+        // Exponential backoff reconnect
+        scheduleReconnectWithBackoff();
     }
     
     @Override
     public void onError(Exception ex) {
         logger.error("Lỗi WebSocket: {}", ex.getMessage(), ex);
+        // Nếu socket bị lỗi và đóng, thử reconnect
+        if (!isOpen()) {
+            scheduleReconnectWithBackoff();
+        }
+    }
+
+    private void scheduleReconnectWithBackoff() {
+        if (reconnecting) return;
+        reconnecting = true;
+        new Thread(() -> {
+            try {
+                int attempt = reconnectAttempts.incrementAndGet();
+                long backoffSec = Math.min(60, (long) Math.pow(2, Math.min(6, attempt - 1)));
+                logger.info("Sẽ thử kết nối lại trong {} giây (attempt #{})", backoffSec, attempt);
+                Thread.sleep(backoffSec * 1000);
+
+                if (!isOpen()) {
+                    logger.info("Đang thử kết nối lại WebSocket (attempt #{})...", attempt);
+                    try {
+                        reconnect();
+                    } catch (Exception e) {
+                        logger.error("Lỗi khi reconnect: {}", e.getMessage());
+                        reconnecting = false; // allow future attempts
+                    }
+                } else {
+                    reconnecting = false;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                reconnecting = false;
+            }
+        }, "WebSocket-Reconnect").start();
     }
 }
