@@ -5,17 +5,18 @@ import com.monitor.client.websocket.ClientWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.PrintStream;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import com.google.gson.Gson;
 import oshi.SystemInfo;
 import oshi.software.os.OperatingSystem;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Main class - Entry point của Client Application
@@ -42,6 +43,14 @@ public class Main {
     private String machineId;
     
     public static void main(String[] args) {
+        // Thiết lập encoding UTF-8 cho console (tránh lỗi dấu '?' trên Windows)
+        try {
+            System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+            System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            // Nếu không thiết lập được, tiếp tục với mặc định
+        }
+
         Main main = new Main();
         main.start(args);
         
