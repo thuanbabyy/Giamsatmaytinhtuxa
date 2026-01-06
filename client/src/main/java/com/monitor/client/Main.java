@@ -1,6 +1,8 @@
 package com.monitor.client;
 
 import com.monitor.client.command.CommandHandler;
+import com.monitor.client.heartbeat.HeartbeatManager;
+import com.monitor.client.monitor.SystemMonitor;
 import com.monitor.client.websocket.ClientWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,7 @@ public class Main {
 
     private ClientWebSocket webSocketClient;
     private CommandHandler commandHandler;
+    private HeartbeatManager heartbeatManager;
     private String serverUrl;
     private String machineId;
 
@@ -109,6 +112,17 @@ public class Main {
 
             // Khởi tạo command handler
             commandHandler = new CommandHandler(serverUrl, machineId);
+
+            // Khởi tạo system monitor
+            SystemMonitor systemMonitor = new SystemMonitor();
+
+            // Khởi tạo command handler
+            commandHandler = new CommandHandler(serverUrl, machineId);
+
+            // Khởi tạo heartbeat manager
+            heartbeatManager = new HeartbeatManager(systemMonitor, serverUrl, machineId,
+                    "default-secret-key-change-me");
+            heartbeatManager.start();
 
             // Kết nối WebSocket để nhận lệnh
             String wsUrl = serverUrl.replace("http://", "ws://").replace("https://", "wss://");
@@ -230,6 +244,10 @@ public class Main {
      */
     public void stop() {
         logger.info("Đang dừng client...");
+
+        if (heartbeatManager != null) {
+            heartbeatManager.stop();
+        }
 
         if (webSocketClient != null) {
             webSocketClient.close();

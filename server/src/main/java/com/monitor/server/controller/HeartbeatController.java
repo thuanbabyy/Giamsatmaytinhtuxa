@@ -2,6 +2,7 @@ package com.monitor.server.controller;
 
 import com.google.gson.Gson;
 import com.monitor.server.security.AuthenticationService;
+import com.monitor.server.service.MachineService;
 import com.monitor.server.service.MetricService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,9 @@ public class HeartbeatController {
     
     @Autowired
     private MetricService metricService;
+    
+    @Autowired
+    private MachineService machineService;
     
     private Gson gson = new Gson();
     
@@ -111,6 +115,9 @@ public class HeartbeatController {
             if (metrics != null) {
                 metricService.saveMetrics(machineId, metrics);
             }
+            
+            // Đảm bảo cập nhật trạng thái online ngay lập tức
+            machineService.updateOnlineStatus(machineId, true);
             
             // Response thành công
             response.put("success", true);
