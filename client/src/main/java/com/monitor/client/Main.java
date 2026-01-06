@@ -145,11 +145,6 @@ public class Main {
                 System.exit(1);
             }
 
-            // Khởi động monitor thread để gửi CPU/RAM metrics
-            com.monitor.client.monitor.SystemMonitorThread monitorThread = new com.monitor.client.monitor.SystemMonitorThread(
-                    serverUrl, machineId, 5);
-            monitorThread.start();
-
             logger.info("Client đã khởi động thành công!");
             logger.info("Đang lắng nghe lệnh từ server...");
             logger.info("Đang gửi metrics hệ thống mỗi 5 giây...");
