@@ -58,7 +58,7 @@ public class SystemMonitor {
         metrics.put("network", collectNetworkMetrics());
 
         // Top 5 processes
-        metrics.put("topProcesses", collectTopProcesses(5));
+        metrics.put("topProcesses", collectTopProcesses(10));
 
         // Timestamp
         metrics.put("timestamp", System.currentTimeMillis());
