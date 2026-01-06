@@ -89,10 +89,37 @@ public class ClientWebSocket extends WebSocketClient {
                 return;
             }
             
-            // Lấy data từ commandData
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) commandData.get("data");
-            
+            // Lấy data từ commandData - xử lý cả trường hợp server gửi data dưới dạng String JSON
+            Object dataObj = commandData.get("data");
+            Map<String, Object> data = null;
+            if (dataObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> tmp = (Map<String, Object>) dataObj;
+                data = tmp;
+            } else if (dataObj instanceof String) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> tmp = (Map<String, Object>) gson.fromJson((String) dataObj, Map.class);
+                    data = tmp;
+                } catch (Exception ex) {
+                    logger.warn("Không thể parse field 'data' từ String: {}", ex.getMessage());
+                }
+            } else if (dataObj != null) {
+                logger.debug("Data field có kiểu không mong đợi: {}", dataObj.getClass().getName());
+            }
+
+            // Nếu data null, thử lấy từ các trường top-level (server có thể gửi title/message/type ở top-level)
+            if (data == null) {
+                Map<String, Object> fallback = new HashMap<>();
+                if (commandData.containsKey("title")) fallback.put("title", commandData.get("title"));
+                if (commandData.containsKey("message")) fallback.put("message", commandData.get("message"));
+                if (commandData.containsKey("type")) fallback.put("type", commandData.get("type"));
+                if (commandData.containsKey("notificationId")) fallback.put("notificationId", commandData.get("notificationId"));
+                if (!fallback.isEmpty()) {
+                    data = fallback;
+                }
+            }
+
             // Xử lý lệnh
             Map<String, Object> result = commandHandler.handleCommand(command, data);
             
