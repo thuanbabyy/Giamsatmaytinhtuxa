@@ -128,6 +128,8 @@ public class CommandHandler {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            logger.info("=== BẮT ĐẦU CHỤP MÀN HÌNH ===");
+
             // Hiển thị popup thông báo
             SwingUtilities.invokeLater(() -> {
                 JOptionPane.showMessageDialog(
@@ -138,29 +140,35 @@ public class CommandHandler {
             });
 
             // Chụp màn hình
+            logger.info("Đang chụp màn hình...");
             Robot robot = new Robot();
             Rectangle screenRect = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
             BufferedImage screenImage = robot.createScreenCapture(screenRect);
+            logger.info("Đã chụp màn hình: {}x{}", screenRect.width, screenRect.height);
 
             // Convert sang base64
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             javax.imageio.ImageIO.write(screenImage, "png", baos);
             byte[] imageBytes = baos.toByteArray();
             String imageBase64 = Base64.getEncoder().encodeToString(imageBytes);
+            logger.info("Đã encode ảnh thành base64. Size: {} KB", imageBytes.length / 1024);
 
             // Gửi về server
             Long commandId = data != null && data.containsKey("commandId")
                     ? Long.parseLong(data.get("commandId").toString())
                     : null;
 
+            logger.info("Đang upload ảnh lên server... CommandId: {}", commandId);
             boolean uploaded = uploadScreenData(imageBase64, "PNG", commandId);
 
             if (uploaded) {
+                logger.info("✅ Upload ảnh thành công!");
                 result.put("success", true);
                 result.put("message", "Đã chụp và gửi màn hình");
                 result.put("imageData", imageBase64);
                 result.put("imageFormat", "PNG");
             } else {
+                logger.error("❌ Upload ảnh thất bại!");
                 result.put("success", false);
                 result.put("message", "Đã chụp màn hình nhưng không thể gửi về server");
             }
@@ -179,6 +187,7 @@ public class CommandHandler {
      */
     private boolean uploadScreenData(String imageDataBase64, String imageFormat, Long commandId) {
         try {
+            logger.info("Chuẩn bị upload...");
             HttpClient client = HttpClient.newHttpClient();
             com.google.gson.Gson gson = new com.google.gson.Gson();
 
@@ -190,19 +199,27 @@ public class CommandHandler {
             }
 
             String json = gson.toJson(request);
+            logger.info("JSON payload size: {} KB", json.length() / 1024);
+
+            String uploadUrl = serverUrl + "/api/screen/" + machineId + "/upload";
+            logger.info("Upload URL: {}", uploadUrl);
 
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(serverUrl + "/api/screen/" + machineId + "/upload"))
+                    .uri(URI.create(uploadUrl))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
+            logger.info("Đang gửi request...");
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            logger.info("Response status: {}", response.statusCode());
+            logger.info("Response body: {}", response.body());
 
             return response.statusCode() == 200;
 
         } catch (Exception e) {
-            logger.error("Lỗi khi upload ảnh màn hình: {}", e.getMessage());
+            logger.error("❌ Lỗi khi upload ảnh màn hình: {}", e.getMessage(), e);
             return false;
         }
     }
