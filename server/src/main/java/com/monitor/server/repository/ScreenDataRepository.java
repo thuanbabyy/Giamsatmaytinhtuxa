@@ -14,7 +14,7 @@ public interface ScreenDataRepository extends JpaRepository<ScreenData, Long> {
 
     List<ScreenData> findByMachineIdOrderByCapturedAtDesc(String machineId);
 
-    @Query("SELECT s FROM ScreenData s WHERE s.machineId = :machineId ORDER BY s.capturedAt DESC")
+    @Query(value = "SELECT TOP 1 * FROM screen_data WHERE machine_id = :machineId ORDER BY captured_at DESC", nativeQuery = true)
     Optional<ScreenData> findLatestByMachineId(@Param("machineId") String machineId);
 
     @Query("SELECT s FROM ScreenData s WHERE s.commandId = :commandId")
