@@ -499,13 +499,20 @@
                     throw new Error('Không thể gửi lệnh chụp màn hình');
                 }
 
-                // Đợi client xử lý và upload
-                console.log('[DEBUG] Đợi 3 giây để client xử lý...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                // Đợi client xử lý và upload (tăng lên 5s để đảm bảo)
+                console.log('[DEBUG] Đợi 5 giây để client xử lý...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
 
                 // Load ảnh mới
                 console.log('[DEBUG] Bắt đầu load ảnh...');
-                await loadLatestScreen();
+                let success = await loadLatestScreen();
+
+                // Nếu không có ảnh, retry sau 2s
+                if (!success) {
+                    console.log('[DEBUG] Chưa có ảnh, đợi thêm 2s và thử lại...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    await loadLatestScreen();
+                }
 
             } catch (error) {
                 console.error('[DEBUG] Lỗi:', error);
@@ -546,15 +553,18 @@
                     imgElement.style.display = 'block';
                     document.getElementById('screenLoading').style.display = 'none';
                     console.log('[DEBUG] ✅ Hiển thị ảnh thành công!');
+                    return true; // Có ảnh
                 } else {
                     console.warn('[DEBUG] ⚠️ Không có ảnh. Status:', response.status);
                     document.getElementById('screenLoading').innerHTML =
                         '<div style="color: #666;">Chưa có ảnh màn hình. Click "Chụp Màn Hình" để chụp.</div>';
+                    return false; // Không có ảnh
                 }
             } catch (error) {
                 console.error('[DEBUG] ❌ Lỗi khi tải ảnh:', error);
                 document.getElementById('screenLoading').innerHTML =
                     '<div style="color: red;">Lỗi khi tải ảnh: ' + error.message + '</div>';
+                return false; // Lỗi
             }
         }
 
