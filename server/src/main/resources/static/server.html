@@ -325,8 +325,6 @@
                 <img id="screenImage" style="display: none;" alt="Màn hình">
                 <div style="margin-top: 20px;">
                     <button class="btn btn-primary" onclick="captureScreen()">Chụp Màn Hình</button>
-                    <button class="btn btn-success" onclick="startScreenMonitoring()">Bắt Đầu Quan Sát</button>
-                    <button class="btn btn-danger" onclick="stopScreenMonitoring()">Dừng Quan Sát</button>
                 </div>
             </div>
         </div>
@@ -352,7 +350,6 @@
 
     <script>
         let currentMachineId = null;
-        let screenMonitoringInterval = null;
 
         // Load danh sách máy tính
         async function loadMachines() {
@@ -410,6 +407,7 @@
                         ${!machine.isOnline ? 'disabled' : ''}>🖼️ Màn Hình</button>
                     <button class="btn btn-warning" onclick="openProcessesModal('${machine.machineId}')" 
                         ${!machine.isOnline ? 'disabled' : ''}>📊 Processes</button>
+                    <button class="btn btn-danger" onclick="deleteMachine('${machine.machineId}')">🗑️ Xóa</button>
                 </div>
             `;
 
@@ -501,27 +499,32 @@
             }
         }
 
-        // Bắt đầu quan sát màn hình
-        function startScreenMonitoring() {
-            if (screenMonitoringInterval) {
-                clearInterval(screenMonitoringInterval);
-            }
+        // Xóa máy tính
+        async function deleteMachine(machineId) {
+            // Xác nhận trước khi xóa
+            const confirmed = confirm(
+                `Bạn có chắc muốn xóa máy này?\n\n` +
+                `ID: ${machineId}\n\n` +
+                `Tất cả dữ liệu (metrics, commands, ảnh màn hình) sẽ bị XÓA VĨNH VIỄN!`
+            );
 
-            captureScreen();
-            screenMonitoringInterval = setInterval(() => {
-                captureScreen();
-                setTimeout(loadLatestScreen, 2000);
-            }, 5000); // Chụp mỗi 5 giây
+            if (!confirmed) return;
 
-            alert('Đã bắt đầu quan sát màn hình (tự động chụp mỗi 5 giây)');
-        }
+            try {
+                const response = await fetch(`/api/machines/${machineId}`, {
+                    method: 'DELETE'
+                });
 
-        // Dừng quan sát màn hình
-        function stopScreenMonitoring() {
-            if (screenMonitoringInterval) {
-                clearInterval(screenMonitoringInterval);
-                screenMonitoringInterval = null;
-                alert('Đã dừng quan sát màn hình');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    alert('Đã xóa máy thành công!');
+                    loadMachines(); // Reload danh sách
+                } else {
+                    alert('Lỗi khi xóa máy: ' + result.message);
+                }
+            } catch (error) {
+                alert('Lỗi khi xóa máy: ' + error.message);
             }
         }
 
@@ -608,7 +611,6 @@
             }
             if (event.target === screenModal) {
                 closeModal('screenModal');
-                stopScreenMonitoring();
             }
             if (event.target === processesModal) {
                 closeModal('processesModal');

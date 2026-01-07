@@ -10,10 +10,12 @@ import java.util.List;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    
+
     List<Notification> findByMachineIdOrderBySentAtDesc(String machineId);
-    
+
     @Query("SELECT n FROM Notification n WHERE n.machineId = :machineId ORDER BY n.sentAt DESC")
     List<Notification> findRecentByMachineId(@Param("machineId") String machineId);
-}
 
+    // Xóa tất cả notifications của một máy
+    void deleteByMachineId(String machineId);
+}

@@ -10,15 +10,17 @@ import java.util.List;
 
 @Repository
 public interface CommandRepository extends JpaRepository<Command, Long> {
-    
-    List<Command> findByMachineIdOrderByCreatedAtDesc(String machineId);
-    
-    List<Command> findByMachineIdAndStatus(String machineId, String status);
-    
-    List<Command> findByStatusOrderByCreatedAtAsc(String status);
-    
-    @Query("SELECT c FROM Command c WHERE c.machineId = :machineId AND c.commandType = :commandType ORDER BY c.createdAt DESC")
-    List<Command> findByMachineIdAndCommandType(@Param("machineId") String machineId, 
-                                                 @Param("commandType") String commandType);
-}
 
+    List<Command> findByMachineIdOrderByCreatedAtDesc(String machineId);
+
+    List<Command> findByMachineIdAndStatus(String machineId, String status);
+
+    List<Command> findByStatusOrderByCreatedAtAsc(String status);
+
+    @Query("SELECT c FROM Command c WHERE c.machineId = :machineId AND c.commandType = :commandType ORDER BY c.createdAt DESC")
+    List<Command> findByMachineIdAndCommandType(@Param("machineId") String machineId,
+            @Param("commandType") String commandType);
+
+    // Xóa tất cả commands của một máy
+    void deleteByMachineId(String machineId);
+}

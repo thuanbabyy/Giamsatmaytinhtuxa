@@ -2,6 +2,10 @@ package com.monitor.server.service;
 
 import com.monitor.server.model.Machine;
 import com.monitor.server.repository.MachineRepository;
+import com.monitor.server.repository.MetricRepository;
+import com.monitor.server.repository.CommandRepository;
+import com.monitor.server.repository.ScreenDataRepository;
+import com.monitor.server.repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,17 +19,29 @@ import java.util.Optional;
  */
 @Service
 public class MachineService {
-    
+
     @Autowired
     private MachineRepository machineRepository;
-    
+
+    @Autowired
+    private MetricRepository metricRepository;
+
+    @Autowired
+    private CommandRepository commandRepository;
+
+    @Autowired
+    private ScreenDataRepository screenDataRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
     /**
      * Đăng ký máy tính mới hoặc cập nhật thông tin
      */
     @Transactional
     public Machine registerMachine(String machineId, String name, String ipAddress, String osName, String osVersion) {
         Optional<Machine> existing = machineRepository.findByMachineId(machineId);
-        
+
         Machine machine;
         if (existing.isPresent()) {
             machine = existing.get();
@@ -45,10 +61,10 @@ public class MachineService {
             machine.setIsOnline(true);
             machine.setLastResponseTime(LocalDateTime.now());
         }
-        
+
         return machineRepository.save(machine);
     }
-    
+
     /**
      * Cập nhật trạng thái online/offline dựa trên phản hồi
      */
@@ -56,28 +72,44 @@ public class MachineService {
     public void updateOnlineStatus(String machineId, boolean isOnline) {
         machineRepository.updateOnlineStatus(machineId, isOnline, LocalDateTime.now());
     }
-    
+
     /**
      * Lấy tất cả máy tính
      */
     public List<Machine> getAllMachines() {
         return machineRepository.findAllOrderByRegisteredAtDesc();
     }
-    
+
     /**
      * Lấy máy tính theo ID
      */
     public Optional<Machine> getMachineById(String machineId) {
         return machineRepository.findByMachineId(machineId);
     }
-    
+
     /**
      * Lấy danh sách máy online
      */
     public List<Machine> getOnlineMachines() {
         return machineRepository.findByIsOnline(true);
     }
-    
+
+    /**
+     * Xóa máy tính và tất cả dữ liệu liên quan
+     * Cascade delete: metrics, commands, screen_data, notifications
+     */
+    @Transactional
+    public void deleteMachine(String machineId) {
+        // Xóa tất cả dữ liệu liên quan (cascade)
+        metricRepository.deleteByMachineId(machineId);
+        commandRepository.deleteByMachineId(machineId);
+        screenDataRepository.deleteByMachineId(machineId);
+        notificationRepository.deleteByMachineId(machineId);
+
+        // Xóa machine
+        machineRepository.deleteById(machineId);
+    }
+
     /**
      * Lấy danh sách máy offline
      */
