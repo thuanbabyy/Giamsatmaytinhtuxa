@@ -155,6 +155,11 @@
             color: white;
         }
 
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
         .btn-warning {
             background: #ff9800;
             color: white;
@@ -324,7 +329,8 @@
                 <div id="screenLoading" class="loading">Đang tải ảnh màn hình...</div>
                 <img id="screenImage" style="display: none;" alt="Màn hình">
                 <div style="margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="captureScreen()">Chụp Màn Hình</button>
+                    <button class="btn btn-primary" onclick="captureScreen(event)">Chụp Màn Hình</button>
+                    <button class="btn btn-secondary" onclick="loadLatestScreen()">🔄 Làm Mới</button>
                 </div>
             </div>
         </div>
@@ -464,38 +470,74 @@
         }
 
         // Chụp màn hình
-        async function captureScreen() {
+        async function captureScreen(event) {
+            const btn = event.target;
+            const originalText = btn.textContent;
+
             try {
+                // Disable button và hiển thị loading
+                btn.disabled = true;
+                btn.textContent = '⏳ Đang chụp...';
+
+                // Hiển thị loading
+                document.getElementById('screenImage').style.display = 'none';
+                document.getElementById('screenLoading').style.display = 'block';
+                document.getElementById('screenLoading').innerHTML = 'Đang chụp màn hình...';
+
+                // Gửi lệnh chụp
                 const response = await fetch(`/api/commands/${currentMachineId}/screen-capture`, {
                     method: 'POST'
                 });
 
-                const result = await response.json();
-                alert(result.message);
+                if (!response.ok) {
+                    throw new Error('Không thể gửi lệnh chụp màn hình');
+                }
 
-                // Đợi 2 giây rồi tải ảnh
-                setTimeout(loadLatestScreen, 2000);
+                // Đợi client xử lý và upload (tăng từ 2s → 3s)
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // Load ảnh mới
+                await loadLatestScreen();
+
             } catch (error) {
-                alert('Lỗi khi chụp màn hình: ' + error.message);
+                document.getElementById('screenLoading').innerHTML =
+                    '<div style="color: red;">Lỗi: ' + error.message + '</div>';
+            } finally {
+                // Re-enable button
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
 
         // Tải ảnh màn hình mới nhất
         async function loadLatestScreen() {
             try {
-                const response = await fetch(`/api/screen/${currentMachineId}/latest`);
+                // Cache-busting: thêm timestamp để luôn load ảnh mới
+                const timestamp = new Date().getTime();
+                const response = await fetch(`/api/screen/${currentMachineId}/latest?t=${timestamp}`);
 
-                if (response.ok && response.headers.get('content-type').startsWith('image/')) {
+                if (response.ok && response.headers.get('content-type')?.startsWith('image/')) {
                     const blob = await response.blob();
+
+                    // Revoke URL cũ nếu có (tránh memory leak)
+                    const imgElement = document.getElementById('screenImage');
+                    if (imgElement.src && imgElement.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(imgElement.src);
+                    }
+
+                    // Tạo URL mới
                     const url = URL.createObjectURL(blob);
-                    document.getElementById('screenImage').src = url;
-                    document.getElementById('screenImage').style.display = 'block';
+                    imgElement.src = url;
+                    imgElement.style.display = 'block';
                     document.getElementById('screenLoading').style.display = 'none';
                 } else {
-                    document.getElementById('screenLoading').innerHTML = 'Chưa có ảnh màn hình';
+                    document.getElementById('screenLoading').innerHTML =
+                        '<div style="color: #666;">Chưa có ảnh màn hình. Click "Chụp Màn Hình" để chụp.</div>';
                 }
             } catch (error) {
-                document.getElementById('screenLoading').innerHTML = 'Lỗi khi tải ảnh màn hình';
+                console.error('Error loading screen:', error);
+                document.getElementById('screenLoading').innerHTML =
+                    '<div style="color: red;">Lỗi khi tải ảnh: ' + error.message + '</div>';
             }
         }
 
