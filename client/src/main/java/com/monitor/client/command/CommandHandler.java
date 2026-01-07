@@ -165,7 +165,8 @@ public class CommandHandler {
                 logger.info("✅ Upload ảnh thành công!");
                 result.put("success", true);
                 result.put("message", "Đã chụp và gửi màn hình");
-                result.put("imageData", imageBase64);
+                // KHÔNG GỬI imageData qua WebSocket (quá lớn!)
+                // result.put("imageData", imageBase64);
                 result.put("imageFormat", "PNG");
             } else {
                 logger.error("❌ Upload ảnh thất bại!");
