@@ -44,18 +44,44 @@ public class ScreenController {
      */
     @GetMapping("/{machineId}/latest")
     public ResponseEntity<?> getLatestScreen(@PathVariable String machineId) {
-        Optional<ScreenData> screenData = screenService.getLatestScreenData(machineId);
+        try {
+            System.out.println("=== GET LATEST SCREEN ===");
+            System.out.println("Machine ID: " + machineId);
 
-        if (screenData.isPresent()) {
-            ScreenData data = screenData.get();
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("image/" + data.getImageFormat().toLowerCase()));
-            return new ResponseEntity<>(data.getImageData(), headers, HttpStatus.OK);
-        } else {
+            Optional<ScreenData> screenData = screenService.getLatestScreenData(machineId);
+
+            if (screenData.isPresent()) {
+                ScreenData data = screenData.get();
+                System.out.println("Found screen data ID: " + data.getId());
+                System.out.println("Image format: " + data.getImageFormat());
+                System.out.println(
+                        "Image size: " + (data.getImageData() != null ? data.getImageData().length : 0) + " bytes");
+
+                // Validate image format
+                String imageFormat = data.getImageFormat();
+                if (imageFormat == null || imageFormat.trim().isEmpty()) {
+                    imageFormat = "png"; // Default to PNG
+                }
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("image/" + imageFormat.toLowerCase()));
+                System.out.println("✅ Returning image with content-type: image/" + imageFormat.toLowerCase());
+                return new ResponseEntity<>(data.getImageData(), headers, HttpStatus.OK);
+            } else {
+                System.out.println("⚠️ No screen data found for machine: " + machineId);
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Chưa có ảnh màn hình");
+                return ResponseEntity.ok(response);
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Error in getLatestScreen: " + e.getMessage());
+            e.printStackTrace();
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
-            response.put("message", "Chưa có ảnh màn hình");
-            return ResponseEntity.ok(response);
+            response.put("message", "Lỗi khi lấy ảnh: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
         }
     }
 
