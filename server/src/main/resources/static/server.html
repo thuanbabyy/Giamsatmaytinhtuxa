@@ -475,6 +475,8 @@
             const originalText = btn.textContent;
 
             try {
+                console.log('[DEBUG] Bắt đầu chụp màn hình cho:', currentMachineId);
+
                 // Disable button và hiển thị loading
                 btn.disabled = true;
                 btn.textContent = '⏳ Đang chụp...';
@@ -485,21 +487,28 @@
                 document.getElementById('screenLoading').innerHTML = 'Đang chụp màn hình...';
 
                 // Gửi lệnh chụp
+                console.log('[DEBUG] Gửi lệnh chụp đến server...');
                 const response = await fetch(`/api/commands/${currentMachineId}/screen-capture`, {
                     method: 'POST'
                 });
 
+                console.log('[DEBUG] Response status:', response.status);
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[DEBUG] Response error:', errorText);
                     throw new Error('Không thể gửi lệnh chụp màn hình');
                 }
 
-                // Đợi client xử lý và upload (tăng từ 2s → 3s)
+                // Đợi client xử lý và upload
+                console.log('[DEBUG] Đợi 3 giây để client xử lý...');
                 await new Promise(resolve => setTimeout(resolve, 3000));
 
                 // Load ảnh mới
+                console.log('[DEBUG] Bắt đầu load ảnh...');
                 await loadLatestScreen();
 
             } catch (error) {
+                console.error('[DEBUG] Lỗi:', error);
                 document.getElementById('screenLoading').innerHTML =
                     '<div style="color: red;">Lỗi: ' + error.message + '</div>';
             } finally {
@@ -514,10 +523,16 @@
             try {
                 // Cache-busting: thêm timestamp để luôn load ảnh mới
                 const timestamp = new Date().getTime();
+                console.log('[DEBUG] Load ảnh từ:', `/api/screen/${currentMachineId}/latest?t=${timestamp}`);
                 const response = await fetch(`/api/screen/${currentMachineId}/latest?t=${timestamp}`);
 
+                console.log('[DEBUG] Load response status:', response.status);
+                console.log('[DEBUG] Content-Type:', response.headers.get('content-type'));
+
                 if (response.ok && response.headers.get('content-type')?.startsWith('image/')) {
+                    console.log('[DEBUG] Nhận được ảnh, tạo blob...');
                     const blob = await response.blob();
+                    console.log('[DEBUG] Blob size:', blob.size, 'bytes');
 
                     // Revoke URL cũ nếu có (tránh memory leak)
                     const imgElement = document.getElementById('screenImage');
@@ -530,12 +545,14 @@
                     imgElement.src = url;
                     imgElement.style.display = 'block';
                     document.getElementById('screenLoading').style.display = 'none';
+                    console.log('[DEBUG] ✅ Hiển thị ảnh thành công!');
                 } else {
+                    console.warn('[DEBUG] ⚠️ Không có ảnh. Status:', response.status);
                     document.getElementById('screenLoading').innerHTML =
                         '<div style="color: #666;">Chưa có ảnh màn hình. Click "Chụp Màn Hình" để chụp.</div>';
                 }
             } catch (error) {
-                console.error('Error loading screen:', error);
+                console.error('[DEBUG] ❌ Lỗi khi tải ảnh:', error);
                 document.getElementById('screenLoading').innerHTML =
                     '<div style="color: red;">Lỗi khi tải ảnh: ' + error.message + '</div>';
             }
